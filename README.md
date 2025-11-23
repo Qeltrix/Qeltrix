@@ -139,10 +139,20 @@ As a Proof-of-Concept, Qeltrix demonstrates several core ideas. Future versions 
 
 ---
 
-## License
+## Licensing
 
-This project is licensed under the **GPLv3** (General Public License version 3). This means you are free to use, study, share, and modify this software. Please see the full license text for complete details.
+This project uses dual licensing:
 
-**Qeltrix (.qltx) pack/unpack tool**  
+### Code Implementation
+The Python implementation (`qeltrix.py`) and associated code are licensed under **GPLv3** (GNU General Public License version 3). You are free to use, modify, and distribute the code under the terms of the GPL.
+
+### Original Concept
+The underlying concept, cryptographic approach, and file format design of Qeltrix are licensed under **CC BY-SA 4.0** (Creative Commons Attribution-ShareAlike 4.0 International). This means:
+- You must give appropriate credit to the original author
+- You may adapt and build upon the concept
+- If you remix, transform, or build upon the concept, you must distribute your contributions under the same CC BY-SA 4.0 license
+- You may use the concept for any purpose, including commercially
+
+**Qeltrix (.qltx) Concept & Implementation**  
 Copyright © 2025 HejHdiss (Muhammed Shafin P)  
-Licensed under GPLv3
+Code: GPLv3 | Concept: CC BY-SA 4.0 International
