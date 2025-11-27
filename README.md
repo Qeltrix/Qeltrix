@@ -8,17 +8,23 @@ The `qeltrix-pypi` folder in this repository contains the PyPI package intended 
 
 For more detailed documentation, please see `qeltrix-pypi`'s README.md
 
-## Universal Dispatcher: qltx.py (Recommended Entry)
+# Universal Dispatcher: qltx.py (Recommended Entry) 
 
 The primary entry point for all operations is the universal dispatcher script, `qltx.py`.
 
-It automatically detects the necessary Qeltrix format version (V1, V2, or V3) based on the command and arguments for `pack`, or by reading the file header for `unpack` and `seek`. It then executes the correct versioned backend script (e.g., `qeltrix-3.py`) seamlessly.
+It automatically detects the necessary Qeltrix format version (V1, V2, V3, or V4) based on the command and arguments for `pack`, or by reading the file header for `unpack` and `seek`. It then executes the correct versioned backend script (e.g., `qeltrix-4.py`) seamlessly.
 
 We highly recommend using `qltx.py` for all operations to ensure backward compatibility and automatic feature selection. This provides an "all-in-one" experience.
 
-You can, however, use the version-specific scripts (`qeltrix-1/2/3.py`) separately if you need direct control over a specific version's behavior for development, testing, or specialized use cases.
+The `qltx.py` dispatcher now requires an explicit version flag (`-v`) for the `pack` command to prevent accidental version selection, but retains automatic version detection for decoding commands (`unpack`, `seek`).
 
-For detailed usage and examples using the dispatcher, please see the **Usage (Universal Dispatcher: qltx.py)** section further below.
+## Dispatcher Usage
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| pack | `python qltx.py -v <version_num> pack <INFILE> <OUTFILE.qltx> [args...]` | Mandatory explicit version selection is required for packing (e.g., `-v 4` for V4). |
+| unpack | `python qltx.py unpack <qltx_file> <OUTFILE> [args...]` | Auto-detects version from the file header (V1-V4 supported). |
+| seek | `python qltx.py seek <qltx_file> offset length [args...]` | Auto-detects version from the file header (V1-V4 supported). |
 
 ## Features (V1 Format - Implemented in qeltrix.py)
 
@@ -79,6 +85,8 @@ For direct access to the V2 features:
 | pack | `python3 qeltrix-2.py pack file.dat out.qltx --compression zstd` | Use V2 features (like Zstd) by calling qeltrix-2.py directly. |
 | seek | `python3 qeltrix-2.py seek file.qltx 10485760 4096` | Perform a random access seek (read 4KB at 10MB offset) using the specific V2 script. |
 
+
+
 ## Qeltrix V3 (qeltrix-3.py) Enhancements
 
 The V3 format, implemented in the separate `qeltrix-3.py` script, introduces a major update focused on secure key transport via Asymmetric Cryptography and multi-algorithm support.
@@ -87,6 +95,7 @@ The V3 format, implemented in the separate `qeltrix-3.py` script, introduces a m
 
 | Feature | Description | Benefit |
 |---------|-------------|---------|
+|Enforced two_pass Architecture | Restricted to the two_pass architecture for key derivation. The single_pass_firstN mode is unsupported because it decreases security (as it relies on hashing only the first N bytes) and is complex to implement in this PoC. Future contributors can add the single_pass_firstN mode in a subsequent version. | Ensures highest key derivation security for V3. |
 | Asymmetric Key Transport | (V3-A mode) The Data Encryption Key (DEK) is generated randomly and then secured using RSA-OAEP with a recipient's public key. | Enables Public/Private Key Architecture for secure key exchange, allowing only the intended recipient to decrypt the data without sharing a content-derived key. |
 | Optional Metadata Signing | The packager can sign the metadata block using their private key (RSA-PSS). | Provides sender authentication and verifiable integrity of the configuration (metadata). |
 | Multi-Algorithm Support | Supports both ChaCha20-Poly1305 and AES256-GCM for bulk data encryption. | Offers flexibility for different security and performance requirements. |
@@ -111,6 +120,102 @@ For direct access to the V3 features:
 | pack | `python3 qeltrix-3.py pack data.zip out.qltx --algo aes256 --compression zstd` | Use AES256-GCM and Zstd compression by calling qeltrix-3.py directly. |
 | unpack | `python3 qeltrix-3.py unpack out.qltx recovered.doc --decrypt-priv-key keys/my_private.key` | Unpack a V3-A file using the specific V3 script. |
 
+## Qeltrix V4 (qeltrix-4.py) Enhancements 
+
+The V4 format, implemented in the new qeltrix-4.py script, introduces a major cryptographic upgrade, focusing solely on high-standard AEAD.
+
+| Feature | Description | Benefit |
+|---------|-------------|---------|
+| Cryptographic Standard | Switched from ChaCha20-Poly1305 to AES256-GCM (Advanced Encryption Standard with Galois/Counter Mode) | Provides a standardized, widely-vetted, and hardware-accelerated AEAD cipher for bulk data encryption |
+| Breaks Backward Compatibility | The qeltrix-4.py script only supports V4 files | Ensures a clean, modern cryptographic foundation without maintaining legacy ciphers in the core script |
+| Retained Features | Maintains all V2 features: parallel decryption, seekability, Zstd/LZ4 compression, and both two_pass/single_pass_firstN key derivation modes | Offers V4 security with V2 performance and flexibility |
+| Key Info String | Uses a new, V4-specific key derivation info string for HKDF (KEY_INFO_V4) | Prevents key re-use across different format versions |
+ 
+### Commands
+
+The `qeltrix-4.py` script supports three main commands: `pack`, `unpack`, and `seek`.
+
+#### 1. pack - Creating a V4 Container
+
+This command creates a new Qeltrix V4 container. It uses the file's content to derive the AES256 key, ensuring the key is self-contained within the data.
+
+**Basic Usage:**
+
+```bash
+python3 qeltrix-4.py pack <INFILE> <OUTFILE.qltx> [OPTIONS]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--block-size <BYTES>` | The size of each data block processed in parallel. | `1048576` (1MB) |
+| `--compression <TYPE>` | Compression algorithm to use: `lz4`, `zstd`, or `none`. | `lz4` |
+| `--mode <TYPE>` | Key derivation mode: `two_pass` (more secure) or `single_pass_firstN` (faster). | `two_pass` |
+| `--head-bytes <BYTES>` | Used with `single_pass_firstN` mode to specify the amount of data to hash. | `1048576` (1MB) |
+| `--no-permute` | Disable the content-seeded byte permutation layer. | Permutation is enabled |
+| `--workers <N>` | Number of parallel worker processes to use. | System CPU count |
+| `--tempdir <PATH>` | Path for temporary block storage during the packing process. | System temporary directory |
+
+**Example:**
+
+```bash
+# Uses AES256-GCM, Zstd compression, and two_pass key derivation
+python3 qeltrix-4.py pack large_backup.iso backup_v4.qltx --compression zstd --block-size 4194304
+```
+
+#### 2. unpack - Decrypting and Extracting
+
+This command reads the V4 container, decrypts and decompresses the contents, and writes the original data to the specified output file or standard output.
+
+**Basic Usage:**
+
+```bash
+python3 qeltrix-4.py unpack <INFILE.qltx> <OUTFILE> [OPTIONS]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--no-verify` | Skip the global SHA256 integrity check (faster, less safe). | Verification is enabled |
+| `--workers <N>` | Number of parallel worker processes for block decryption/decompression. | System CPU count |
+
+**Example:**
+
+```bash
+# Unpacks the file, leveraging multiple cores for parallel processing
+python3 qeltrix-4.py unpack backup_v4.qltx restored_file.iso --workers 8
+```
+
+#### 3. seek - Random Access Retrieval (V2+ Feature)
+
+This command allows for fast, random access to a specific byte range within the container without needing to decrypt the entire file. It is ideal for quickly reading file headers or extracting small sections from large archives.
+
+**Basic Usage:**
+
+```bash
+python3 qeltrix-4.py seek <INFILE.qltx> <OFFSET> <LENGTH> [OPTIONS]
+```
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `<OFFSET>` | The starting byte position (zero-indexed) in the original unencrypted file. | (Required) |
+| `<LENGTH>` | The number of bytes to retrieve starting from the offset. | (Required) |
+| `--output <FILE>` | Optional file path to write the output data to. If omitted, output goes to stdout. | stdout |
+| `--workers <N>` | Number of parallel worker processes for block decryption/decompression. | System CPU count |
+
+**Example: Reading a 4KB header at 10MB into a file**
+
+```bash
+# Reads 4096 bytes (4KB) starting at byte 10485760 (10MB)
+python3 qeltrix-4.py seek data_archive.qltx 10485760 4096 --output header_extract.bin
+```
+
+### Dependencies for v4
+
+Install the required Python packages using pip:
+
+```bash
+pip install lz4 cryptography zstandard
+```
+
 ## Installation
 
 Qeltrix is written in Python 3 and requires several external dependencies.
@@ -127,42 +232,14 @@ Install the required Python packages using pip:
 pip install lz4 cryptography zstandard
 ```
 
-## Usage (Universal Dispatcher: qltx.py)
-
-The recommended entry point for all operations is the universal dispatcher script, `qltx.py`. This script automatically detects the necessary Qeltrix format version (V1, V2, or V3) based on the command and arguments for `pack`, or by reading the file header for `unpack` and `seek`. It then executes the correct versioned backend script (e.g., `qeltrix-3.py`) seamlessly.
-
-### 1. Packing a File (Version Auto-Detection)
-
-Use the `pack` subcommand with all options you require. The dispatcher will choose the newest format version that supports the combination of arguments provided (e.g., using `--recipient-pub-key` will automatically select V3).
-
-```bash
-python3 qltx.py pack <INFILE> <OUTFILE.qltx> [OPTIONS]
-```
-
-#### Example 1 (V1/V2 Default - Content-Derived Keying):
-
-This is the recommended default mode for maximum key entropy.
-
-```bash
-python3 qltx.py pack my_large_file.dat output.qltx
-```
-
-#### Example 2 (V3-A Feature - Asymmetric Key Transport):
-
-This automatically selects the V3 backend script.
-
-```bash
-# Encrypts the DEK using 'recipient.pub' so only they can unpack it.
-python3 qltx.py pack my_secret.doc encrypted_v3.qltx --recipient-pub-key keys/recipient.pub
-```
 
 #### Pack Options (All Versions)
 
 | Option | Version | Default | Description |
 |--------|---------|---------|-------------|
 | `--block-size` | V1+ | 1048576 (1MB) | Size of raw data chunks to process in each block. |
-| `--mode` | V1+ | two_pass | Key derivation mode: `two_pass` (full content hash) or `single_pass_firstN`. |
-| `--head-bytes` | V1+ | 1048576 (1MB) | For `single_pass_firstN` mode, the number of raw bytes used for key derivation. |
+| `--mode` | V1+ | two_pass | Key derivation mode: `two_pass` (full content hash) or `single_pass_firstN`. Note: The V3 script (qeltrix-3.py) only supports two_pass. |
+| `--head-bytes` | V1+ | 1048576 (1MB) | For `single_pass_firstN` mode, the number of raw bytes used for key derivation.Note: Not applicable in V3. |
 | `--workers` | V1+ | (CPU Count) | Number of worker processes to use for parallel compression/encryption. |
 | `--no-permute` | V1+ | | Disable the deterministic permutation layer. |
 | `--tempdir` | V1+ | (System default) | Specify a directory for temporary files (only used in `two_pass` mode). |
@@ -203,7 +280,7 @@ python3 qltx.py unpack encrypted_v3.qltx recovered.doc --decrypt-priv-key keys/m
 
 ### 3. Seeking / Random Access (V2+ Files Only)
 
-The `seek` command is also routed by `qltx.py` and supports V2 and V3 files.
+The `seek` command is also routed by `qltx.py` and supports V2, V3 and V4 iles.
 
 ```bash
 python3 qltx.py seek <INFILE> offset length [OPTIONS]
@@ -227,7 +304,7 @@ python3 qltx.py seek recovered_file.qltx 10485760 4096
 
 ## Test Suites and Verification
 
-The repository includes a set of functional test scripts that verify the core features of each format version and the correct operation of the universal dispatcher.
+Note on Test Scripts: The comprehensive dispatcher test script, test-qltx.py, has been removed.
 
 To run these tests, ensure all dependencies are installed and execute the scripts directly. The tests create a temporary directory (`qeltrix_..._test_data`) for their operations and perform clean-up afterwards.
 
@@ -236,7 +313,7 @@ To run these tests, ensure all dependencies are installed and execute the script
 | `test.py` | `qeltrix.py` (V1) | Basic V1 functionality, including `two_pass` and `single_pass_firstN` key derivation modes. |
 | `test-2.py` | `qeltrix-2.py` (V2) | V2-specific features: Zstandard (Zstd) compression, parallel unpacking, and random access (seek). |
 | `test-3.py` | `qeltrix-3.py` (V3) | V3-specific features: Symmetric V3 pack/unpack, Asymmetric (V3-A) pack/unpack/seek, signing/verification, and AES-GCM encryption. |
-| `test-qltx.py` | `qltx.py` (Dispatcher) | Comprehensive test of the `qltx.py` dispatcher to ensure it correctly selects the V1, V2, or V3 backend based on command-line arguments and file headers. |
+| `test-4.py` (NEW) | `qeltrix-4.py` (V4) | V4-specific features: AES256-GCM, parallel unpack, and seek. |
 
 ## File Format Overview
 
@@ -274,7 +351,7 @@ Qeltrix is an open-source project driven by the community and for the community.
 
 ### Code Implementation
 
-The Python implementation (`qeltrix.py`, `qeltrix-2.py`, `qeltrix-3.py`, and `qltx.py` dispatcher) and associated code are licensed under **GPLv3** (GNU General Public License version 3). You are free to use, modify, and distribute the code under the terms of the GPL.
+The Python implementation (`qeltrix.py`, `qeltrix-2.py`, `qeltrix-3.py`,`qeltrix-4.py`and `qltx.py` dispatcher) and associated code are licensed under **GPLv3** (GNU General Public License version 3). You are free to use, modify, and distribute the code under the terms of the GPL.
 
 ### Original Concept
 

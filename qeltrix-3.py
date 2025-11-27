@@ -788,9 +788,7 @@ if __name__ == "__main__":
     p.add_argument("--block-size", type=int, default=1048576, help="Block size in bytes (default: 1 MiB)")
     p.add_argument("--no-permute", action="store_true", help="Disable deterministic permutation.")
     p.add_argument("--compression", choices=["lz4", "zstd"], default="lz4", help="Compression algorithm to use.")
-    p.add_argument("--mode", choices=["two_pass", "single_pass_firstN"], default="two_pass", 
-                   help="Key derivation mode (two_pass or single_pass_firstN). NOTE: single_pass_firstN is currently not fully implemented in this version.")
-    p.add_argument("--head-bytes", type=int, default=1048576, help="Head bytes for keying in single_pass_firstN mode (default: 1 MiB).")
+  
     p.add_argument("--cipher", dest="bulk_cipher", choices=["chacha20-poly1305", "aes256-gcm"], 
                    default="chacha20-poly1305", help="Bulk encryption cipher.")
     p.add_argument("--pubkey", dest="recipient_pub_key_path", default=None, 
@@ -829,12 +827,10 @@ if __name__ == "__main__":
     
     try:
         if args.cmd == "pack":
-            if args.mode == "single_pass_firstN":
-                 raise NotImplementedError("single_pass_firstN is complex and omitted for this large update.")
+           
             pack_qeltrix(
                 args.infile, args.outfile, block_size=args.block_size,
                 permute=(not args.no_permute), compression=args.compression, 
-                mode=args.mode, head_bytes=args.head_bytes, 
                 bulk_cipher=args.bulk_cipher,
                 recipient_pub_key_path=args.recipient_pub_key_path,
                 signer_priv_key_path=args.signer_priv_key_path,

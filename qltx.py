@@ -11,13 +11,13 @@ import subprocess
 import os
 import struct
 from typing import List, Tuple, Optional
+import copy
 
 # --- Qeltrix Header Detection Constants ---
 MAGIC = b"QLTX"
-HEADER_SIZE = 8 
+HEADER_SIZE = 8
 
 def detect_qeltrix_version(filepath: str) -> Optional[str]:
-    """Reads the first 8 bytes of a file to detect its Qeltrix version."""
     try:
         if not os.path.exists(filepath) or not os.path.isfile(filepath):
             return None
@@ -31,8 +31,11 @@ def detect_qeltrix_version(filepath: str) -> Optional[str]:
         # CRITICAL FIX: Change from big-endian (>) to little-endian (<) 
         # to match how your backend scripts are saving the version.
         version_num = struct.unpack('<I', header[4:])[0] 
-
-        if version_num >= 3:
+        
+        # Corrected the single '=' assignment operator to '==' comparison
+        if version_num == 4:
+            return 'v4'
+        elif version_num == 3:
             return 'v3' 
         elif version_num == 2:
             return 'v2' 
@@ -44,22 +47,40 @@ def detect_qeltrix_version(filepath: str) -> Optional[str]:
     except Exception:
         return None
 
-def get_script_and_version_for_pack(args_to_pass: List[str]) -> Tuple[str, str]:
-    """Determines the target script and version for the 'pack' command."""
+# The function now accepts the pre-determined version and passes the clean args through.
+def get_script_and_version_for_pack(version_arg: str, args_to_pass: List[str]) -> Tuple[str, str, List[str]]:
+    """
+    Determines the target script and version for the 'pack' command based on 
+    the mandatory version_arg supplied before the command.
     
-    # 1. V3/V3-A
-    if "--pubkey" in args_to_pass or any(flag in args_to_pass for flag in ["--cipher", "aes256-gcm", "chacha20-poly1305"]):
-        return 'qeltrix-3.py', 'v3'
-        
-    # 2. V2
-    if any(a == "--compression" and args_to_pass[args_to_pass.index(a) + 1] == "zstd" for a in args_to_pass if a == "--compression"):
-        return 'qeltrix-2.py', 'v2'
-        
-    # 3. V1 (Default)
-    return 'qeltrix.py', 'v1'
+    Returns (script_file, version, backend_args_list).
+    """
+    # The args_to_pass list is already clean (does not contain -v)
+    try:
+        # Determine routing based on the explicit version number
+        if version_arg == '4':
+            return 'qeltrix-4.py', 'v4', args_to_pass
+        elif version_arg == '3':
+            return 'qeltrix-3.py', 'v3', args_to_pass
+        # V1 and V2 are routed to the shared backward-compatible script
+        elif version_arg == '2' :
+            return 'qeltrix-2.py', 'v2', args_to_pass
+        elif version_arg == '1':
+            return 'qeltrix.py' , 'v1' ,args_to_pass
+        else:
+            raise ValueError(f"Invalid Qeltrix version number specified: {version_arg}")
+
+    except ValueError as e:
+        raise e
+    except Exception:
+        raise ValueError(f"Error processing specified version '{version_arg}'.")
+    
 
 def get_script_and_version_for_decode(command: str, qltx_file: str) -> Tuple[str, str]:
-    """Determines the target script and version for 'unpack' or 'seek'."""
+    """
+    Determines the target script and version for 'unpack' or 'seek' by
+    reading the version from the file header.
+    """
     
     version = detect_qeltrix_version(qltx_file)
     
@@ -69,6 +90,8 @@ def get_script_and_version_for_decode(command: str, qltx_file: str) -> Tuple[str
     # --- ROUTING LOGIC ---
     if version == 'v3':
         return 'qeltrix-3.py', version
+    if version == 'v4':
+        return 'qeltrix-4.py' ,version
     
     # V1 and V2 files MUST be routed to qeltrix-2.py for backwards compatibility.
     if version == 'v2' or version == 'v1':
@@ -78,37 +101,73 @@ def get_script_and_version_for_decode(command: str, qltx_file: str) -> Tuple[str
 
 # === MAIN EXECUTION LOGIC ===
 
-if __name__ == "__main__":
+def main():
     
-    if len(sys.argv) < 2:
-        print("Usage: python qltx.py <command> [args...]", file=sys.stderr)
+    # Minimum arguments are 3 for unpack/seek: python, qltx.py, <cmd>, <file>
+    if len(sys.argv) < 3:
+        print("Usage for packing: python qltx.py -v <version_num> pack [args...]", file=sys.stderr)
+        print("Usage for decoding: python qltx.py <unpack|seek> <qltx_file> [args...]", file=sys.stderr)
         sys.exit(1)
-        
-    command = sys.argv[1].lower()
-    args_to_pass = sys.argv[1:] 
+
+    version_arg = None
     
     try:
         script_file = None
         version = None
         
-        if command == "pack":
-            script_file, version = get_script_and_version_for_pack(sys.argv[2:])
+        # --- Determine CLI structure based on first argument ---
+        if sys.argv[1].lower() == "-v":
+            # Structure 1: Mandatory for 'pack' -> qltx.py -v <version_num> <command> [args...]
             
-        elif command in ["unpack", "seek"]:
-            if len(sys.argv) < 3:
-                raise ValueError(f"Command '{command}' requires an input file.")
-            qltx_file = sys.argv[2] 
-            script_file, version = get_script_and_version_for_decode(command, qltx_file)
+            if len(sys.argv) < 4:
+                raise ValueError("Missing command after version flag.")
             
-        else:
-            raise ValueError(f"Unknown Qeltrix command: {command}")
+            version_arg = sys.argv[2]
+            command = sys.argv[3].lower()
+            # Arguments for the backend script, starting after the command
+            args_to_pass = sys.argv[4:] 
+            
+            if command != "pack":
+                raise ValueError(f"The -v flag is only required and accepted before the 'pack' command. Use 'qltx.py {command} ...' instead.")
+            
+            # Proceed with pack logic
+            full_args_for_subproc = [command] 
+            script_file, version, backend_args = get_script_and_version_for_pack(version_arg, args_to_pass)
+            full_args_for_subproc.extend(backend_args)
 
+        else:
+            # Structure 2: Optional for decode -> qltx.py <command> [args...]
+            
+            command = sys.argv[1].lower()
+            # Arguments for the backend script, starting after the command
+            args_to_pass = sys.argv[2:] 
+            
+            if command == "pack":
+                # User tried to pack without the mandatory -v flag
+                raise ValueError(f"The 'pack' command requires a version flag: Usage: python qltx.py -v <version_num> pack [args...]")
+            
+            if command in ["unpack", "seek"]:
+                if len(args_to_pass) < 1:
+                    raise ValueError(f"Command '{command}' requires an input file.")
+                
+                qltx_file = args_to_pass[0] 
+                # For decode, we ignore any version_arg and read the file header
+                script_file, version = get_script_and_version_for_decode(command, qltx_file)
+                full_args_for_subproc = [command] 
+                # For decode, all arguments after the command are passed
+                full_args_for_subproc.extend(args_to_pass) 
+            
+            else:
+                raise ValueError(f"Unknown Qeltrix command: {command}")
+
+        # --- Shared Dispatch Logic ---
         script_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), script_file)
 
         if not os.path.exists(script_file_path):
             raise FileNotFoundError(f"Backend script '{script_file}' not found.")
             
-        full_command = [sys.executable, script_file_path] + args_to_pass
+        # Construct the final command: python <script> <command> <args...>
+        full_command = [sys.executable, script_file_path] + full_args_for_subproc
         
         print(f"--- Qeltrix Dispatcher ---\nCommand: {command.upper()}, Detected/Target Version: {version.upper()}\nDispatching to: {os.path.basename(script_file)}\n--------------------------", file=sys.stderr)
 
@@ -124,3 +183,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"An unexpected error occurred: {e}", file=sys.stderr)
         sys.exit(1)
+if __name__ == "__main__":
+    main()
