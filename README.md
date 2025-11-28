@@ -115,7 +115,7 @@ Creates a new V5/V5A archive from a folder.
 | Option | Description | Default |
 |:---|:---|:---|
 | `--input-folder <PATH>` | **Input folder** path to archive. | None (Required) |
-| `--output-file <PATH>` | **Output V5 archive** file path (e.g., `archive.q5`). | None (Required) |
+| `--output-file <PATH>` | **Output V5 archive** file path (e.g., `archive.qltx`). | None (Required) |
 | `-v, --v-config <CONFIG>` | **V2/V4 Block Config**: Defines encryption, compression, and key derivation mode for data blocks. | `4,--compression=lz4,--permute,--mode=two_pass` |
 
 > ##### V-Config Format and Parameters
