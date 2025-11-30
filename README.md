@@ -26,6 +26,41 @@ We believe Qeltrix's foundational architecture is robust, but it requires collab
 
 ---
 
+## Understanding Qeltrix: Essential Reading
+
+To fully understand Qeltrix's architecture and vision, we strongly recommend reading these foundational articles:
+
+### [Qeltrix: One Vision, Multiple Proofs-of-Concept](https://dev.to/hejhdiss/qeltrix-one-vision-multiple-proofs-of-concept-2bgk)
+
+**Essential Context:** This article addresses a critical misconception—V1 through V5 aren't five different tools, they're five incremental proofs-of-concept demonstrating different aspects of a single, unified cryptographic archiving system. Think of them as chapters in a book, not different books entirely.
+
+The article explains:
+- Why versions exist as PoC milestones rather than separate products
+- How each version validates one piece of the complete Qeltrix architecture
+- The difference between Qeltrix as a PoC and the battle-tested cryptographic primitives it uses
+- Qeltrix's core design goal: high-performance parallel processing with selective data access (security is a beneficial byproduct, not the primary objective)
+- The complete vision: a unified system that seamlessly combines folder archiving, multiple encryption algorithms, random access, asymmetric encryption, and VFS navigation
+
+### [Qeltrix V6: The Future of Network-Native Encrypted Streaming](https://dev.to/hejhdiss/qeltrix-v6-the-future-of-network-native-encrypted-streaming-13k6)
+
+**The Next Chapter:** V6 represents the network-native streaming evolution of Qeltrix—validating that the architecture extends naturally into live network transmission and gateway routing.
+
+Key V6 concepts include:
+- **Network-native streaming:** Creating and accessing containers over networks without requiring complete local files
+- **Gateway/Router architecture:** Acting as a transparent encryption layer that converts data streams to encrypted, seekable V6 containers in real-time
+- **Block-based VFS:** Each block is a complete, self-contained unit with its own metadata and integrity verification
+- **HTTP seekability:** Native support for range requests, enabling instant access to arbitrary positions in multi-gigabyte files
+- **V6cs mode:** Content-secured key management with dual-layer metadata encryption
+
+**Important Note:** Unlike V1-V5, V6 currently exists only as a conceptual specification without a reference implementation, awaiting community development.
+
+---
+
+**These articles are essential reading for anyone looking to contribute to or build upon Qeltrix.** They clarify the unified vision behind the project and explain why collaborative community effort is crucial for realizing Qeltrix's full potential.
+
+---
+
+
 # Universal Dispatcher: qltx.py (Recommended Entry) 
 
 The primary entry point for all operations is the universal dispatcher script, `qltx.py`.
@@ -51,9 +86,9 @@ The `qltx.py` dispatcher now requires an explicit version flag (`-v`) for the `p
 
 | Command | Usage | Description |
 |:---|:---|:---|
-| `pack` | `python qltx.py pack --input-folder <PATH> --output-file <ARCHIVE.q5> -v 5,[args...]` | **Mandatory explicit version** (`-v 5`). Archives an entire **folder** into a V5/V5A file. Use `--public-key` for V5A mode. |
-| `unpack` | `python qltx.py unpack --input-file <ARCHIVE.q5> --output-folder <PATH> [args...]` | Unpacks the V5/V5A archive to a designated **output folder**. |
-| `seek` | `python qltx.py seek --input-file <ARCHIVE.q5> --vfs-path <FILE_PATH> --offset <N> --length <L> [args...]` | **VFS Seek**: Reads a byte range from a specific file path **inside** the archive. Requires the `--vfs-path` argument. |
+| `pack` | `python qltx.py pack --input-folder <PATH> --output-file <ARCHIVE.qltx> -v 5,[args...]` | **Mandatory explicit version** (`-v 5`). Archives an entire **folder** into a V5/V5A file. Use `--public-key` for V5A mode. |
+| `unpack` | `python qltx.py unpack --input-file <ARCHIVE.qltx> --output-folder <PATH> [args...]` | Unpacks the V5/V5A archive to a designated **output folder**. |
+| `seek` | `python qltx.py seek --input-file <ARCHIVE.qltx> --vfs-path <FILE_PATH> --offset <N> --length <L> [args...]` | **VFS Seek**: Reads a byte range from a specific file path **inside** the archive. Requires the `--vfs-path` argument. |
 
 > **Important Note on V5 Data Model:**
 > Versions **V1 through V4** are designed to operate on a **single input file**, where the entire file content is treated as one stream or a series of identical blocks. **V5** introduces a **Virtual File System (VFS)** model, allowing it to package an entire **folder** into a single container. Consequently, V5 uses distinct command-line arguments like `--input-folder` and `--vfs-path` that are not compatible with the older, single-file versions.
@@ -71,14 +106,7 @@ The V5 format, implemented in the separate `qeltrix-5.py` script, transforms Qel
 | **V5A Mode (Asymmetric)** | If `--public-key` is supplied during `pack`, the Metadata Encryption Key (MEK) is **RSA-encrypted** using the public key. This requires the corresponding `--private-key` for `unpack` or `seek`. | Enables secure, recipient-only sharing of archive contents. |
 | **V5 Mode (Unencrypted)** | If `--public-key` is **omitted** during `pack`, the VFS metadata is stored as **unencrypted JSON** alongside the data blocks. | Allows for rapid unpacking and seeking without requiring a private key (though the content blocks remain encrypted by the master key). |
 | **Backward Block Compatibility** | V5 is designed to pack and unpack individual file blocks using the **V2 (ChaCha20-Poly1305)** or **V4 (AES256-GCM)** format, specified via the `-v` config string (e.g., `-v 4,--compression=zstd`). | Leverages proven and tested block encryption methods while providing new VFS features. |
-| **Parallel Processing** | Utilizes Python's ProcessPoolExecutor for concurrent, CPU-intensive operations (encryption, decryption, compression).
-
-
-pack/unpack: Uses default workers (typically os.cpu_count()) for high throughput.
-
-seek: Uses max_workers=1 to run the single block decryption/decompression in a separate, isolated process.
-
-(Note: As a POC, it currently lacks an explicit --workers command-line argument, defaulting to the system's core count or 1 if os.cpu_count() is unavailable.Since this is a community project, contributions to add an explicit worker configuration are welcome!) | Dramatically improves performance for high-volume operations and isolates single-block operations like seek. |
+| **Parallel Processing** | Utilizes Python's ProcessPoolExecutor for concurrent, CPU-intensive operations (encryption, decryption, compression). pack/unpack: Uses default workers (typically os.cpu_count()) for high throughput. seek: Uses max_workers=1 to run the single block decryption/decompression in a separate, isolated process.(Note: As a POC, it currently lacks an explicit --workers command-line argument, defaulting to the system's core count or 1 if os.cpu_count() is unavailable.Since this is a community project, contributions to add an explicit worker configuration are welcome!) | Dramatically improves performance for high-volume operations and isolates single-block operations like seek. |
 | **VFS Seek (Virtual File System Seek)** | Allows direct retrieval of a byte range (using --offset and --length) from a single file inside the archive, without needing to decrypt or decompress the entire archive or even the entire file block. | Enables instant access to small parts of large archived files (e.g., retrieving a config file header or log file segment) without full extraction, saving significant time and resources. |
 | **Format Version** | Internal format version bumped to **5**. | Clearly identifies files that support the V5 VFS and optional asymmetric metadata features. |
 
