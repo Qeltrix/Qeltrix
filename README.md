@@ -4,9 +4,23 @@
 
 Qeltrix is a Proof-of-Concept command-line utility for creating encrypted, content-derived, and efficiently compressed data containers. It leverages parallel processing, modern cryptography (ChaCha20-Poly1305), and a streaming architecture suitable for large files.
 
-The `qeltrix-pypi` folder in this repository contains the PyPI package intended for upload. Due to technical issues, I'm currently unable to publish it to PyPI. The folder includes a detailed README.md with full documentation for the PyPI package, which currently only covers the V1 format.
+---
 
-For more detailed documentation, please see `qeltrix-pypi`'s README.md
+## PyPi Update
+
+The contents of the `qeltrix-pypi` repository folder, including all development versions up to V5 (via the dedicated `qeltrix_2.py` through `qeltrix_5.py` modules), have been successfully packaged and uploaded to PyPI as version v0.0.0a0. This distribution is now installable under the name `qeltrix`.
+
+The documentation below serves as the official README for the PyPI distribution.
+
+For the public package details and full usage instructions, please see the intended PyPI page and its README: https://pypi.org/project/qeltrix/
+
+### Installation
+
+The package is now installable directly using pip:
+
+```bash
+pip install qeltrix
+```
 
 ---
 

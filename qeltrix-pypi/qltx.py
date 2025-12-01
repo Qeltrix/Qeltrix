@@ -61,14 +61,14 @@ def get_script_and_version_for_pack(version_arg: str, args_to_pass: List[str]) -
     try:
         # Determine routing based on the explicit version number
         if version_arg == '5':
-            return 'qeltrix-5.py', 'v5', args_to_pass
+            return 'qeltrix_5.py', 'v5', args_to_pass
         elif version_arg == '4':
-            return 'qeltrix-4.py', 'v4', args_to_pass
+            return 'qeltrix_4.py', 'v4', args_to_pass
         elif version_arg == '3':
-            return 'qeltrix-3.py', 'v3', args_to_pass
+            return 'qeltrix_3.py', 'v3', args_to_pass
         # V1 and V2 are routed to the shared backward-compatible script
         elif version_arg == '2' :
-            return 'qeltrix-2.py', 'v2', args_to_pass
+            return 'qeltrix_2.py', 'v2', args_to_pass
         elif version_arg == '1':
             return 'qeltrix.py' , 'v1' ,args_to_pass
         else:
@@ -93,19 +93,20 @@ def get_script_and_version_for_decode(command: str, qltx_file: str) -> Tuple[str
 
     # --- ROUTING LOGIC ---
     if version == 'v5':
-        return 'qeltrix-5.py', version
+        return 'qeltrix_5.py', version
     if version == 'v3':
-        return 'qeltrix-3.py', version
+        return 'qeltrix_3.py', version
     if version == 'v4':
-        return 'qeltrix-4.py' ,version
+        return 'qeltrix_4.py' ,version
     
     # V1 and V2 files MUST be routed to qeltrix-2.py for backwards compatibility.
     if version == 'v2' or version == 'v1':
-        return 'qeltrix-2.py', version 
+        return 'qeltrix_2.py', version 
         
     raise ValueError(f"Unsupported Qeltrix version '{version}' detected in file.")
 
-# === MAIN EXECUTION LOGIC ===
+
+
 # === MAIN EXECUTION LOGIC ===
 
 def main():
@@ -214,6 +215,5 @@ def main():
     except Exception as e:
         print(f"An unexpected error occurred: {e}", file=sys.stderr)
         sys.exit(1)
-
 if __name__ == "__main__":
     main()
